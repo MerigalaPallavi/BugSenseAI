@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BugSense AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .navbar {
+            background: #1e293b !important;
+            border-bottom: 1px solid #334155;
+        }
+
+        .main-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+        }
+
+        textarea {
+            background: #0f172a !important;
+            color: #e2e8f0 !important;
+            border: 1px solid #334155 !important;
+            resize: none;
+        }
+
+        textarea:focus {
+            outline: none !important;
+            border-color: #6366f1 !important;
+            box-shadow: none !important;
+        }
+
+        .btn-classify {
+            background: #6366f1;
+            border: none;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .btn-classify:hover {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .result-box {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .severity-red    { color: #ef4444; font-weight: bold; }
+        .severity-orange { color: #f97316; font-weight: bold; }
+        .severity-yellow { color: #eab308; font-weight: bold; }
+        .severity-green  { color: #22c55e; font-weight: bold; }
+
+        .history-item {
+            border-bottom: 1px solid #334155;
+            padding: 10px 0;
+            font-size: 14px;
+        }
+
+        .badge-critical { background: #ef4444; }
+        .badge-high     { background: #f97316; }
+        .badge-medium   { background: #eab308; color: #000; }
+        .badge-low      { background: #22c55e; }
+
+        .result-section { display: none; }
+    </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-dark px-4 py-3 mb-4">
+    <span class="navbar-brand fw-bold fs-5">🐛 BugSense AI</span>
+    <a href="/dashboard" class="btn btn-outline-light btn-sm">📊 View Dashboard</a>
+</nav>
+
+<div class="container" style="max-width: 680px;">
+
+    <!-- Input Card -->
+    <div class="main-card p-4 mb-4">
+        <h6 class="mb-3 text-muted">Paste your bug report below</h6>
+        <textarea id="bugInput" class="form-control mb-3" rows="5"
+            placeholder="e.g. App crashes when user clicks the login button on mobile...">
+        </textarea>
+        <button class="btn-classify w-100" onclick="classifyBug()">
+            Classify Bug
+        </button>
+    </div>
+
+    <!-- Result Section -->
+    <div class="main-card p-4 mb-4 result-section" id="resultSection">
+        <h6 class="mb-3">Classification Result</h6>
+        <div class="row g-3">
+
+            <div class="col-6">
+                <div class="result-box">
+                    <small class="text-muted d-block mb-1">Severity</small>
+                    <span id="severityText" class="fs-5"></span>
+                </div>
+            </div>
+
+            <div class="col-6">
+                <div class="result-box">
+                    <small class="text-muted d-block mb-1">Category</small>
+                    <span id="categoryText" class="fs-5 fw-bold"></span>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="result-box">
+                    <small class="text-muted d-block mb-1">Confidence</small>
+                    <div class="progress mt-2" style="height: 6px;">
+                        <div id="confidenceBar" class="progress-bar bg-success" style="width: 0%"></div>
+                    </div>
+                    <small id="confidenceText" class="text-success mt-1 d-block"></small>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Recent History -->
+    <div class="main-card p-4" id="historySection" style="display:none;">
+        <h6 class="mb-3">Recent Classifications</h6>
+        <div id="historyList"></div>
+    </div>
+
+</div>
+
+<script>
+let localHistory = [];
+
+async function classifyBug() {
+    const text = document.getElementById('bugInput').value.trim();
+
+    if (!text) {
+        alert('Please enter a bug description!');
+        return;
+    }
+
+    const btn = document.querySelector('.btn-classify');
+    btn.textContent = 'Classifying...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/predict', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+
+        const result = await response.json();
+
+        // show severity with color
+        const sevEl = document.getElementById('severityText');
+        sevEl.textContent = result.color + ' - ' + result.severity;
+        sevEl.className = 'fs-5 severity-' + result.color.toLowerCase();
+
+        // show category
+        document.getElementById('categoryText').textContent = result.category;
+
+        // show confidence bar
+        document.getElementById('confidenceBar').style.width = result.confidence + '%';
+        document.getElementById('confidenceText').textContent = result.confidence + '% confident';
+
+        // show result section
+        document.getElementById('resultSection').style.display = 'block';
+
+        // add to local history
+        localHistory.unshift(result);
+        updateHistory();
+
+    } catch(err) {
+        alert('Something went wrong. Make sure Flask is running!');
+    }
+
+    btn.textContent = 'Classify Bug';
+    btn.disabled = false;
+}
+
+function updateHistory() {
+    document.getElementById('historySection').style.display = 'block';
+
+    const html = localHistory.slice(0, 5).map(item => `
+        <div class="history-item d-flex justify-content-between align-items-center">
+            <small class="text-muted" style="max-width:65%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                ${item.text}
+            </small>
+            <div>
+                <span class="badge badge-${item.severity.toLowerCase()} me-1">${item.severity}</span>
+                <span class="badge bg-secondary">${item.category}</span>
+            </div>
+        </div>
+    `).join('');
+
+    document.getElementById('historyList').innerHTML = html;
+}
+</script>
+
+</body>
+</html>
