@@ -1,5 +1,5 @@
 # BugSense AI 🐛
-
+🔗 **Live Demo:** [https://bugsenseai-gmg7.onrender.com](https://bugsenseai-gmg7.onrender.com)
 An AI-powered web application that automatically classifies bug reports by severity and category using Natural Language Processing and Machine Learning.
 
 ## What Problem Does It Solve?
